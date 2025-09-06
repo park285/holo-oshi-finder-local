@@ -1,0 +1,283 @@
+/* Holo-Oshi Finder 글로벌 스타일 */
+
+:root {
+  --holo-primary: #FFB7C5;     /* Cherry Blossom Pink */
+  --holo-secondary: #FF85C0;   /* Deep Blossom */
+  --holo-success: #95DE64;     /* Spring Green */
+  --holo-warning: #FFD666;     /* Sunshine Yellow */
+  --holo-info: #85A5FF;        /* Sky Blue */
+  --holo-dark: #1f1f1f;
+  --holo-darker: #141414;
+  --holo-light: #fefefe;
+  --blossom-gradient: linear-gradient(135deg, #FFB7C5, #FF85C0);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  font-family: 'Pretendard', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%);
+  color: #f0f0f0;
+}
+
+/* 다크모드 스타일 */
+[data-theme="dark"] {
+  background: linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%);
+  color: #f0f0f0;
+}
+
+/* 라이트모드 스타일 */
+[data-theme="light"] {
+  background: linear-gradient(135deg, #fff5f7 0%, #fefefe 100%);
+  color: #262626;
+}
+
+[data-theme="light"] body {
+  background: linear-gradient(135deg, #fff5f7 0%, #fefefe 100%);
+  color: #262626;
+}
+
+/* 그라데이션 텍스트 */
+.gradient-text {
+  background: linear-gradient(90deg, #FFB7C5, #FF85C0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 유리 효과 */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 애니메이션 */
+@keyframes gradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 15s ease infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* 스크롤바 스타일 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Ant Design 커스터마이징 */
+.ant-btn-primary {
+  background: linear-gradient(90deg, #FFB7C5, #FF85C0) !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(255, 183, 197, 0.25);
+}
+
+.ant-btn-primary:hover {
+  background: linear-gradient(90deg, #FF85C0, #FF69B4) !important;
+  box-shadow: 0 4px 12px rgba(255, 183, 197, 0.35);
+}
+
+.ant-card {
+  backdrop-filter: blur(10px);
+}
+
+[data-theme="dark"] .ant-card {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="light"] .ant-card {
+  background: rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+}
+
+/* Progress Bar 커스터마이징 */
+.ant-progress-bg {
+  background: linear-gradient(90deg, #FFB7C5, #FF85C0) !important;
+}
+
+/* Typography 다크모드 */
+[data-theme="dark"] .ant-typography {
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .ant-typography {
+  color: #1a1a2e !important;
+}
+
+/* 유틸리티 클래스 */
+.text-center {
+  text-align: center;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.min-h-screen {
+  min-height: 100vh;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.max-w-4xl {
+  max-width: 56rem;
+}
+
+.mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.p-6 {
+  padding: 1.5rem;
+}
+
+.p-8 {
+  padding: 2rem;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.mb-6 {
+  margin-bottom: 1.5rem;
+}
+
+.mb-8 {
+  margin-bottom: 2rem;
+}
+
+.gap-4 {
+  gap: 1rem;
+}
+
+.gap-6 {
+  gap: 1.5rem;
+}
+
+.gap-8 {
+  gap: 2rem;
+}
+
+/* 반응형 그리드 */
+.grid {
+  display: grid;
+}
+
+.grid-cols-1 {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+@media (min-width: 768px) {
+  .md\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  
+  .md\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  
+  .md\:flex-row {
+    flex-direction: row;
+  }
+  
+  .md\:text-left {
+    text-align: left;
+  }
+}
+
+@media (min-width: 1024px) {
+  .lg\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* 호버 효과 */
+.hover-float {
+  transition: transform 0.3s ease;
+}
+
+.hover-float:hover {
+  transform: translateY(-4px);
+}
+
+/* 라인 클램프 */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

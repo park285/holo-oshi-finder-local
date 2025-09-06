@@ -1,0 +1,192 @@
+server:
+  port: 50006
+
+spring:
+  application:
+    name: search-service
+  
+  # Redis Configuration for Caching & State Management
+  data:
+    redis:
+      host: localhost
+      port: 6380
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 8
+          min-idle: 2
+  
+  # RabbitMQ Configuration for Event Driven Architecture
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: rabbit
+    password: rabbit_secret
+    virtual-host: /
+  
+  # Spring Cloud Stream Configuration
+  cloud:
+    compatibility-verifier:
+      enabled: false
+    function:
+      definition: memberUpdatedConsumer;vectorUpdatedConsumer
+    stream:
+      bindings:
+        # Outbound Events
+        search-started-out-0:
+          destination: search.events
+          content-type: application/json
+        search-completed-out-0:
+          destination: search.events
+          content-type: application/json
+        search-failed-out-0:
+          destination: search.events
+          content-type: application/json
+        
+        # Inbound Events (Member/Vector Service Events)
+        member-updated-in-0:
+          destination: member.events
+          group: search-service
+          content-type: application/json
+        vector-updated-in-0:
+          destination: vector.events
+          group: search-service
+          content-type: application/json
+      
+      rabbit:
+        bindings:
+          search-started-out-0:
+            producer:
+              routing-key-expression: '''search.started'''
+          search-completed-out-0:
+            producer:
+              routing-key-expression: '''search.completed'''
+          search-failed-out-0:
+            producer:
+              routing-key-expression: '''search.failed'''
+
+# Service Discovery Configuration
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka:eureka_secret@localhost:50008/eureka/
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 15
+    lease-expiration-duration-in-seconds: 45
+
+# Circuit Breaker & Resilience Configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      member-service:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        automatic-transition-from-open-to-half-open-enabled: true
+      vector-service:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        automatic-transition-from-open-to-half-open-enabled: true
+  
+  retry:
+    instances:
+      member-service:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+      vector-service:
+        max-attempts: 3
+        wait-duration: 1s
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+  
+  timelimiter:
+    instances:
+      member-service:
+        timeout-duration: 5s
+        cancel-running-future: true
+      vector-service:
+        timeout-duration: 10s
+        cancel-running-future: true
+
+# Feign Client Configuration
+feign:
+  compression:
+    request:
+      enabled: true
+    response:
+      enabled: true
+  client:
+    config:
+      default:
+        connect-timeout: 5000
+        read-timeout: 10000
+      member-service:
+        connect-timeout: 3000
+        read-timeout: 8000
+      vector-service:
+        connect-timeout: 5000
+        read-timeout: 15000
+
+# Observability & Monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics,circuitbreakers
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+  health:
+    circuitbreakers:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  tracing:
+    sampling:
+      probability: 1.0  # Netflix/Google 수준: 모든 요청 추적
+  zipkin:
+    tracing:
+      endpoint: http://localhost:59411/api/v2/spans
+
+# Logging Configuration
+logging:
+  level:
+    com.holo.oshi.search: DEBUG
+    org.springframework.statemachine: DEBUG
+    org.springframework.cloud.openfeign: DEBUG
+    io.github.resilience4j: DEBUG
+  pattern:
+    level: "[%X{traceId:-},%X{spanId:-}] %-5level"
+
+# Custom Configuration
+search:
+  saga:
+    timeout: 30s
+    max-retries: 3
+  cache:
+    ttl: 300s
+  async:
+    core-pool-size: 5
+    max-pool-size: 20
+    queue-capacity: 100

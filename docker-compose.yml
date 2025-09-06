@@ -1,0 +1,368 @@
+# 네트워크 설정 단순화 - 기본 네트워크만 사용
+
+services:
+
+  # PostgreSQL with TimescaleDB extension
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: holo-postgres
+    environment:
+      POSTGRES_USER: holo_user
+      POSTGRES_PASSWORD: holo_password
+      POSTGRES_DB: holo_oshi_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C.UTF-8"
+    # 개발용 포트 노출
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U holo_user -d holo_oshi_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Redis for caching (통합된 단일 인스턴스)
+  redis:
+    image: redis:7-alpine
+    container_name: holo-redis
+    # 개발용 포트 노출
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-unified-data:/data
+    # 성능 최적화된 설정
+    command: |
+      redis-server 
+      --appendonly yes 
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1 60 100 30 10000
+      --tcp-keepalive 300
+      --timeout 0
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # RabbitMQ for MSA messaging
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: holo-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: rabbit
+      RABBITMQ_DEFAULT_PASS: rabbit_secret
+      RABBITMQ_DEFAULT_VHOST: holo_msa
+    ports:
+      - "5672:5672"   # AMQP 포트
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./rabbitmq-config:/etc/rabbitmq
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # MongoDB for logging
+  mongodb:
+    image: mongo:7.0
+    container_name: holo-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"  # 개발용 포트
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: monitoring_admin
+      MONGO_INITDB_ROOT_PASSWORD: monitoring_secure_pass_2025
+      MONGO_INITDB_DATABASE: holo_monitoring
+    volumes:
+      - mongodb-data:/data/db
+      - ./db/mongodb-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Database management UI
+  adminer:
+    image: adminer
+    container_name: holo-adminer
+    restart: unless-stopped
+    ports:
+      - "8091:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha
+    depends_on:
+      - postgres
+
+  # PgVector Search Service
+  pgvector-service:
+    build:
+      context: ./services/database/pgvector-service
+      dockerfile: Dockerfile
+    container_name: holo-pgvector-service
+    # 외부 접근 차단 - 내부 벡터검색 전용
+    # ports:
+    #   - "9005:3000"
+    env_file:
+      - .env.shared
+    environment:
+      - JINA_API_KEY=${JINA_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Node.js NLP Search Service (Natural.js)
+  node-nlp-service:
+    build:
+      context: ./services/node-nlp
+      dockerfile: Dockerfile
+    container_name: holo-node-nlp-service
+    # 외부 접근 차단 - 내부 NLP 전용
+    # ports:
+    #   - "9001:3000"
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  # Python NLP Search Service (KoNLPy)
+  python-nlp-service:
+    build:
+      context: ./services/python-nlp
+      dockerfile: Dockerfile
+    container_name: holo-python-nlp-service
+    # 외부 접근 차단 - 내부 NLP 전용
+    expose:
+      - "9002"
+    env_file:
+      - .env.shared
+    environment:
+      - DEBUG=false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9002/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Vector Search Service
+  vector-search-service:
+    build:
+      context: ./services/vector-search
+      dockerfile: Dockerfile
+    container_name: holo-vector-search-service
+    # 외부 접근 차단 - 내부 벡터검색 전용
+    # ports:
+    #   - "9003:3000"
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  # Unified Search Service
+
+  # Gemini Query Classifier Service
+  gemini-query-classifier:
+    build:
+      context: .
+      dockerfile: ./services/gemini-classifier/Dockerfile
+    container_name: holo-gemini-classifier
+    # 외부 접근 차단 - 내부 Gemini 분석 전용
+    # ports:
+    #   - "9007:3000"
+    environment:
+      - PORT=3000
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - REDIS_URL=redis://redis:6379
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 통합 검색 서비스 v2 (내부 전용 - RAG 핵심)
+  unified-search-v2:
+    build:
+      context: .
+      dockerfile: ./services/llm-analyzer/Dockerfile
+    container_name: holo-unified-search-v2
+    # 외부 접근 차단 - API Gateway를 통해서만 접근 (테스트용 임시 개방)
+    ports:
+      - "9004:9004"
+    expose:
+      - "9004"
+    env_file:
+      - .env.shared
+    environment:
+      - PORT=9004
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+      python-nlp-service:
+        condition: service_healthy
+      pgvector-service:
+        condition: service_healthy
+      gemini-query-classifier:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-s", "http://localhost:9004/health"]
+      interval: 60s
+      timeout: 15s
+      
+  # 리팩토링된 통합 검색 서비스 v2 (테스트용)
+  unified-search-v2-refactored:
+    build:
+      context: .
+      dockerfile: ./services/llm-analyzer/Dockerfile.refactored
+    container_name: holo-unified-search-v2-refactored
+    ports:
+      - "9009:3000"
+    env_file:
+      - .env.shared
+    environment:
+      - PORT=3000
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+      python-nlp-service:
+        condition: service_healthy
+      pgvector-service:
+        condition: service_healthy
+      gemini-query-classifier:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-s", "http://localhost:3000/health"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+
+  # Final LLM Analyzer Service (Gemini 2.5 Pro - 깊은 분석용)
+  final-llm-analyzer:
+    build:
+      context: .
+      dockerfile: ./services/llm-analyzer/Dockerfile.llm
+    container_name: holo-final-llm-analyzer
+    # 포트 노출 제거 - API 게이트웨이로만 접근
+    env_file:
+      - .env.shared
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - FINAL_LLM_PORT=9008
+      - GEMINI_MODEL=gemini-2.5-pro  # 2.5 Pro 모델 명시
+      - UNIFIED_SEARCH_URL=http://holo-unified-search-v2:9004
+    depends_on:
+      redis:
+        condition: service_healthy
+      unified-search-v2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Caddy API Gateway (nginx 대체)
+  caddy-api-gateway:
+    image: caddy:2-alpine
+    container_name: holo-caddy-gateway
+    ports:
+      - "80:80"      # HTTP
+      - "443:443"    # HTTPS (자동 SSL)
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/data:/data  # Caddy 데이터 (인증서 등)
+      - ./caddy/config:/config  # Caddy 설정
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # 호스트 접근용
+    depends_on:
+      final-llm-analyzer:
+        condition: service_healthy
+      unified-search-v2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Monitoring Service - API 추적 및 통계
+  monitoring-service:
+    build:
+      context: ./services/monitoring
+      dockerfile: Dockerfile
+    container_name: holo-monitoring
+    # 외부 포트 노출 제거 - API Gateway를 통해서만 접근
+    expose:
+      - "9010"
+    environment:
+      - MONITORING_PORT=9010
+      - REDIS_HOST=redis  # 통합 Redis 사용
+      - REDIS_PORT=6379
+      - MONGODB_URI=mongodb://monitoring_admin:monitoring_secure_pass_2025@holo-mongodb:27017/holo_monitoring?authSource=admin
+      - ADMIN_KEY=${ADMIN_KEY:-change-me-in-production}
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - monitoring-data:/app/data/monitoring-backup
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+  
+  # Monitoring Dashboard - GUI 모니터링 툴
+  monitoring-dashboard:
+    build:
+      context: ./services/monitoring-dashboard
+      dockerfile: Dockerfile
+    container_name: holo-monitoring-dashboard
+    ports:
+      - "3001:80"  # 대시보드는 3001 포트에서 접근
+    depends_on:
+      monitoring-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Portainer for Docker management
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: holo-portainer
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  postgres-data:
+  redis-unified-data:
+  rabbitmq-data:
+  mongodb-data:
+  portainer_data:
+  monitoring-data:

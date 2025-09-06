@@ -1,0 +1,82 @@
+# 공통 설정 - 모든 MSA 서비스에 적용
+spring:
+  application:
+    name: ${APPLICATION_NAME:holo-oshi-service}
+  
+  # Reactive 설정
+  webflux:
+    base-path: /api
+  
+  # 데이터베이스 공통 설정
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:holo_oshi_db}
+    username: ${DB_USER:holo_user}
+    password: ${DB_PASSWORD:holo_password}
+    pool:
+      initial-size: 5
+      max-size: 20
+      max-idle-time: 30m
+  
+  # Redis 공통 설정
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: ${REDIS_TIMEOUT:2000}
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX:8}
+          max-idle: 8
+          min-idle: 0
+  
+  # RabbitMQ 공통 설정
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:rabbit}
+    password: ${RABBITMQ_PASSWORD:rabbit_secret}
+    virtual-host: ${RABBITMQ_VHOST:/}
+
+# Eureka 클라이언트 공통 설정
+eureka:
+  instance:
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+  client:
+    register-with-eureka: ${EUREKA_REGISTER:true}
+    fetch-registry: ${EUREKA_FETCH:true}
+    service-url:
+      defaultZone: ${EUREKA_URL:http://eureka:eureka123@localhost:50008/eureka/}
+    registry-fetch-interval-seconds: 10
+
+# 모니터링 공통 설정
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  health:
+    redis:
+      enabled: true
+    rabbit:
+      enabled: true
+
+# 로깅 공통 설정
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
+    com.holo.oshi: ${APP_LOG_LEVEL:DEBUG}
+    org.springframework.web: ${SPRING_LOG_LEVEL:INFO}
+    org.springframework.data: ${DATA_LOG_LEVEL:DEBUG}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

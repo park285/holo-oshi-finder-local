@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Storage</title>
+    <style>
+        body {
+            font-family: 'Pretendard', -apple-system, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 { color: #FFB7C5; text-align: center; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        button {
+            background: linear-gradient(90deg, #FFB7C5, #FF85C0);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin: 5px;
+        }
+        button:hover { opacity: 0.9; }
+        pre {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .success { color: #52C41A; font-weight: bold; }
+        .error { color: #FF7875; font-weight: bold; }
+        .warning { color: #FFD666; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🌸 Holo-Oshi Finder - Storage 완전 정리</h1>
+    
+    <div class="section">
+        <h2>1단계: 현재 상태 확인</h2>
+        <button onclick="checkCurrentData()">현재 데이터 확인</button>
+        <pre id="current-data"></pre>
+    </div>
+    
+    <div class="section">
+        <h2>2단계: 데이터 완전 삭제</h2>
+        <button onclick="deleteAllData()">모든 데이터 삭제</button>
+        <div id="delete-status"></div>
+    </div>
+    
+    <div class="section">
+        <h2>3단계: 새 데이터 설정</h2>
+        <button onclick="setNewData()">깨끗한 한글 데이터 설정</button>
+        <pre id="new-data"></pre>
+    </div>
+    
+    <div class="section">
+        <h2>4단계: 확인</h2>
+        <button onclick="verifyData()">데이터 검증</button>
+        <pre id="verify-result"></pre>
+    </div>
+
+    <script>
+        function checkCurrentData() {
+            const data = localStorage.getItem('lastMatchResult');
+            const output = document.getElementById('current-data');
+            
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    output.innerHTML = '<span class="warning">현재 저장된 데이터:</span>\n' + JSON.stringify(parsed, null, 2);
+                    
+                    // 깨진 문자 체크
+                    if (JSON.stringify(parsed).includes('�')) {
+                        output.innerHTML += '\n\n<span class="error">⚠️ 깨진 문자가 발견되었습니다! 삭제가 필요합니다.</span>';
+                    }
+                } catch (e) {
+                    output.innerHTML = '<span class="error">에러: ' + e.message + '</span>';
+                }
+            } else {
+                output.innerHTML = '<span class="success">저장된 데이터가 없습니다.</span>';
+            }
+        }
+        
+        function deleteAllData() {
+            // localStorage 완전 삭제
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // 모든 키 확인 후 삭제
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+                localStorage.removeItem(key);
+            });
+            
+            const status = document.getElementById('delete-status');
+            status.innerHTML = '<span class="success">✅ 모든 데이터가 완전히 삭제되었습니다!</span>';
+            
+            // 확인
+            const remaining = localStorage.getItem('lastMatchResult');
+            if (remaining) {
+                status.innerHTML += '<br><span class="error">⚠️ 아직 데이터가 남아있습니다. 브라우저 캐시를 완전히 지워주세요.</span>';
+            }
+        }
+        
+        function setNewData() {
+            const newResult = {
+                recommendations: [
+                    {
+                        name: "Usada Pekora",
+                        matchScore: 0.95,
+                        matchingTraits: ["장난기 많은", "게임 좋아함", "활발함"],
+                        reasoning: "당신의 활발하고 재미를 추구하는 성격과 완벽하게 매치되는 멤버입니다.",
+                        generation: "3기생",
+                        branch: "JP",
+                        tags: ["게이머", "코미디언", "엔터테이너"],
+                        personality: ["활발한", "장난기 많은", "친근한"],
+                        streamStyle: "게임 위주의 재미있는 방송"
+                    },
+                    {
+                        name: "Inugami Korone",
+                        matchScore: 0.88,
+                        matchingTraits: ["게임", "귀여운", "활발한"],
+                        reasoning: "게임을 좋아하고 밝은 에너지를 선호하는 당신과 잘 맞습니다.",
+                        generation: "Gamers",
+                        branch: "JP",
+                        tags: ["게이머", "레트로 게임"],
+                        personality: ["밝은", "긍정적", "열정적"],
+                        streamStyle: "장시간 게임 스트리밍"
+                    },
+                    {
+                        name: "Minato Aqua",
+                        matchScore: 0.82,
+                        matchingTraits: ["게이머", "귀여운", "노력파"],
+                        reasoning: "게임 실력과 귀여움을 동시에 추구하는 당신의 취향에 부합합니다.",
+                        generation: "2기생",
+                        branch: "JP",
+                        tags: ["게이머", "아이돌"],
+                        personality: ["수줍은", "진지한", "노력하는"],
+                        streamStyle: "FPS 게임과 노래"
+                    }
+                ],
+                analysisConfidence: 0.92,
+                processingTime: 1250,
+                timestamp: new Date().toISOString()
+            };
+            
+            localStorage.setItem('lastMatchResult', JSON.stringify(newResult));
+            
+            const output = document.getElementById('new-data');
+            output.innerHTML = '<span class="success">✅ 새 데이터가 설정되었습니다:</span>\n' + JSON.stringify(newResult, null, 2);
+        }
+        
+        function verifyData() {
+            const data = localStorage.getItem('lastMatchResult');
+            const output = document.getElementById('verify-result');
+            
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    
+                    // 깨진 문자 체크
+                    const dataStr = JSON.stringify(parsed);
+                    if (dataStr.includes('�')) {
+                        output.innerHTML = '<span class="error">❌ 여전히 깨진 문자가 있습니다!</span>';
+                    } else if (parsed.recommendations && parsed.recommendations[0].name === "Usada Pekora") {
+                        output.innerHTML = '<span class="success">✅ 데이터가 정상적으로 설정되었습니다!</span>\n';
+                        output.innerHTML += '첫 번째 추천: ' + parsed.recommendations[0].name + '\n';
+                        output.innerHTML += '매칭도: ' + Math.round(parsed.recommendations[0].matchScore * 100) + '%\n';
+                        output.innerHTML += '특성: ' + parsed.recommendations[0].matchingTraits.join(', ');
+                    } else {
+                        output.innerHTML = '<span class="warning">⚠️ 데이터는 있지만 예상과 다릅니다.</span>';
+                    }
+                } catch (e) {
+                    output.innerHTML = '<span class="error">파싱 에러: ' + e.message + '</span>';
+                }
+            } else {
+                output.innerHTML = '<span class="error">데이터가 없습니다!</span>';
+            }
+        }
+        
+        // 페이지 로드 시 자동 확인
+        window.onload = checkCurrentData;
+    </script>
+</body>
+</html>

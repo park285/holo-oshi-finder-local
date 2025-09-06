@@ -1,0 +1,214 @@
+server:
+  port: 50099  # Go API Gateway가 50000 사용 (백업용으로 유지)
+
+spring:
+  application:
+    name: api-gateway
+  
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      
+      routes:
+        # Auth Service 라우팅 (인증 불필요)
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: auth-service-cb
+                fallbackUri: forward:/api/fallback/auth
+        
+        # Member Service 라우팅 (인증 필요)
+        - id: member-service
+          uri: lb://member-service
+          predicates:
+            - Path=/api/members/**
+          filters:
+            - name: AuthenticationGatewayFilter
+              args:
+                enabled: true
+                requireAuth: true
+            - name: CircuitBreaker
+              args:
+                name: member-service-cb
+                fallbackUri: forward:/api/fallback/member
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+        
+        # Vector Service 라우팅 (인증 필요)
+        - id: vector-service
+          uri: lb://vector-service
+          predicates:
+            - Path=/api/vector/**
+          filters:
+            - name: AuthenticationGatewayFilter
+              args:
+                enabled: true
+                requireAuth: true
+            - name: CircuitBreaker
+              args:
+                name: vector-service-cb
+                fallbackUri: forward:/api/fallback/vector
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+        
+        # Search Service 라우팅 (인증 필요 - 프리미엄 기능)
+        - id: search-service
+          uri: lb://search-service
+          predicates:
+            - Path=/api/search/**
+          filters:
+            - name: AuthenticationGatewayFilter
+              args:
+                enabled: true
+                requireAuth: true
+            - name: CircuitBreaker
+              args:
+                name: search-service-cb
+                fallbackUri: forward:/api/fallback/search
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 30
+                redis-rate-limiter.burstCapacity: 60
+        
+        # 헬스체크 통합 라우팅
+        - id: health-checks
+          uri: http://localhost:50001  # Primary health from Member Service
+          predicates:
+            - Path=/health
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: health-cb
+                fallbackUri: forward:/api/fallback/health
+      
+      # CORS 설정
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: 
+              - "http://localhost:3000"
+              - "http://localhost:8080" 
+              - "http://localhost:50000"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka:eureka_secret@localhost:50008/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+    initial-instance-info-replication-interval-seconds: 5
+    instance-info-replication-interval-seconds: 5
+  instance:
+    hostname: localhost
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 10
+
+# Resilience4j Circuit Breaker 설정
+resilience4j:
+  circuitbreaker:
+    instances:
+      member-service-cb:
+        register-health-indicator: true
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        max-wait-duration-in-half-open-state: 0
+      
+      vector-service-cb:
+        register-health-indicator: true
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 6
+        minimum-number-of-calls: 4
+        failure-rate-threshold: 60
+        wait-duration-in-open-state: 45s
+        permitted-number-of-calls-in-half-open-state: 2
+        max-wait-duration-in-half-open-state: 0
+      
+      search-service-cb:
+        register-health-indicator: true
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 8
+        minimum-number-of-calls: 3
+        failure-rate-threshold: 70
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 2
+        max-wait-duration-in-half-open-state: 0
+
+  timelimiter:
+    instances:
+      member-service-cb:
+        timeout-duration: 10s
+      vector-service-cb:
+        timeout-duration: 30s  # 벡터 검색은 더 오래 걸림
+      search-service-cb:
+        timeout-duration: 120s # Saga 실행은 가장 오래 걸림
+
+# Rate Limiting (Redis 기반)
+spring.redis:
+  host: localhost
+  port: 6380
+  timeout: 2000ms
+  lettuce:
+    pool:
+      max-active: 8
+      max-wait: -1ms
+
+# 로깅 설정
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    com.holo.oshi.gateway: INFO
+    org.springframework.web: INFO
+    reactor.netty: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId},%X{spanId}] %logger{36} - %msg%n"
+
+# Actuator 설정
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,gateway,circuitbreakers
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      service: api-gateway
+      environment: local
+  tracing:
+    sampling:
+      probability: 1.0  # Netflix/Google 수준: 모든 요청 추적
+  zipkin:
+    tracing:
+      endpoint: http://localhost:59411/api/v2/spans

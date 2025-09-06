@@ -1,0 +1,79 @@
+server:
+  port: 50002
+
+spring:
+  application:
+    name: vector-service
+  cloud:
+    compatibility-verifier:
+      enabled: false
+    stream:
+      bindings:
+        embedding-updated-out-0:
+          destination: vector.events
+          content-type: application/json
+        member-updated-in-0:
+          destination: member.events
+          group: vector-service
+      rabbit:
+        bindings:
+          embedding-updated-out-0:
+            producer:
+              routing-key-expression: '''vector.embedding.updated'''
+  
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5433/holo_oshi_db
+    username: holo_user
+    password: holo_password
+    pool:
+      initial-size: 10
+      max-size: 30
+      max-idle-time: 30m
+  
+  data:
+    redis:
+      host: localhost
+      port: 6380
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+  
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: rabbit
+    password: rabbit_secret
+    virtual-host: holo_msa
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka:eureka_secret@localhost:50008/eureka/
+  instance:
+    prefer-ip-address: true
+
+google:
+  api:
+    key: ${GOOGLE_API_KEY:your_google_api_key}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  tracing:
+    sampling:
+      probability: 1.0  # Netflix/Google 수준: 모든 요청 추적
+  zipkin:
+    tracing:
+      endpoint: http://localhost:59411/api/v2/spans
+
+logging:
+  level:
+    com.holo.oshi.vector: DEBUG
+    org.springframework.data.r2dbc: DEBUG

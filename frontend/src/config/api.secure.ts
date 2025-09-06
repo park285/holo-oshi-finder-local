@@ -1,0 +1,56 @@
+const API_CONFIG = {
+  BASE_URL: process.env.NODE_ENV === 'production' ? '' : '',
+  ENDPOINTS: {
+    ANALYZE: '/api/analyze',
+    SEARCH: '/api/search', 
+    HEALTH: '/api/health'
+  },
+  TIMEOUT: 300000 
+} as const
+
+export default API_CONFIG
+
+export const apiClient = {
+  async post<T = any>(endpoint: string, data: any): Promise<T> {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT)
+    
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data),
+        signal: controller.signal,
+        credentials: 'same-origin'
+      })
+      
+      clearTimeout(timeoutId)
+      
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`)
+      }
+      
+      return response.json()
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      if (error.name === 'AbortError') {
+        throw new Error(`API 타임아웃 (${API_CONFIG.TIMEOUT/1000}초)`)
+      }
+      throw error
+    }
+  },
+  
+  async get<T = any>(endpoint: string): Promise<T> {
+    const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
+      credentials: 'same-origin'
+    })
+    
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status} ${response.statusText}`)
+    }
+    
+    return response.json()
+  }
+}

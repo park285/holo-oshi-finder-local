@@ -1,0 +1,47 @@
+server:
+  port: 50008
+
+spring:
+  application:
+    name: eureka-server
+  cloud:
+    compatibility-verifier:
+      enabled: false
+  security:
+    user:
+      name: eureka
+      password: eureka_secret
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+    service-url:
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
+  server:
+    enable-self-preservation: false
+    eviction-interval-timer-in-ms: 5000
+    response-cache-update-interval-ms: 3000
+    renewal-percent-threshold: 0.49
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+  tracing:
+    sampling:
+      probability: 1.0  # Netflix/Google 수준: 모든 요청 추적
+  zipkin:
+    tracing:
+      endpoint: http://localhost:59411/api/v2/spans
+
+logging:
+  level:
+    com.netflix.eureka: INFO
+    com.netflix.discovery: INFO

@@ -1,0 +1,82 @@
+global:
+  resolve_timeout: 5m
+  smtp_from: 'alertmanager@holo-oshi.local'
+  smtp_smarthost: 'localhost:25'
+  smtp_require_tls: false
+
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'default-receiver'
+  
+  routes:
+    # Critical 알람은 즉시 전송
+    - match:
+        severity: critical
+      receiver: 'critical-receiver'
+      group_wait: 5s
+      repeat_interval: 15m
+    
+    # 서비스별 라우팅
+    - match:
+        service: api-gateway
+      receiver: 'api-gateway-team'
+      
+    - match:
+        service: member-service
+      receiver: 'backend-team'
+      
+    - match:
+        service: vector-service
+      receiver: 'ai-team'
+      
+    - match:
+        service: llm-analyzer
+      receiver: 'ai-team'
+
+receivers:
+  - name: 'default-receiver'
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook'
+        send_resolved: true
+
+  - name: 'critical-receiver'
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook/critical'
+        send_resolved: true
+    # Slack 연동 (옵션)
+    # slack_configs:
+    #   - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+    #     channel: '#alerts-critical'
+    #     title: 'Critical Alert'
+
+  - name: 'api-gateway-team'
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook/api-gateway'
+
+  - name: 'backend-team'
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook/backend'
+
+  - name: 'ai-team'
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook/ai'
+
+inhibit_rules:
+  # 서비스가 다운되면 관련 알람 억제
+  - source_match:
+      severity: 'critical'
+      alertname: 'ServiceDown'
+    target_match:
+      severity: 'warning'
+    equal: ['service']
+    
+  # API Gateway가 다운되면 하위 서비스 알람 억제
+  - source_match:
+      service: 'api-gateway'
+      alertname: 'ServiceDown'
+    target_match_re:
+      service: '.+service'
+    equal: ['cluster']

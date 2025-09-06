@@ -1,0 +1,98 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'holo-oshi-msa'
+    environment: 'production'
+
+# Alertmanager 설정
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# 알람 규칙 파일 로드
+rule_files:
+  - "alert_rules.yml"
+
+# 스크레이프 설정
+scrape_configs:
+  # Prometheus 자체 모니터링
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # MSA 서비스들 - Spring Boot Actuator
+  - job_name: 'api-gateway'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:50000']
+        labels:
+          service: 'api-gateway'
+          tier: 'gateway'
+
+  - job_name: 'eureka-server'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:50008']
+        labels:
+          service: 'eureka-server'
+          tier: 'discovery'
+
+  - job_name: 'member-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:50001']
+        labels:
+          service: 'member-service'
+          tier: 'backend'
+
+  - job_name: 'vector-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:50002']
+        labels:
+          service: 'vector-service'
+          tier: 'backend'
+
+  - job_name: 'llm-analyzer-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:50004']
+        labels:
+          service: 'llm-analyzer'
+          tier: 'ai'
+
+  - job_name: 'search-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:50006']
+        labels:
+          service: 'search-service'
+          tier: 'orchestration'
+
+  # 인프라 메트릭
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          instance: 'host'
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          database: 'postgresql'
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          cache: 'redis'
+
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq-exporter:9419']
+        labels:
+          messaging: 'rabbitmq'

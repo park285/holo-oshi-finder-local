@@ -1,0 +1,129 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Node.js
+node_modules/
+dist/
+build/
+*.log
+npm-debug.log*
+package-lock.json
+yarn.lock
+.npm
+.eslintcache
+
+# Kotlin/Java/Gradle
+.gradle/
+gradle/
+build/
+out/
+*.class
+*.jar
+*.war
+*.ear
+.gradletasknamecache
+gradle-app.setting
+!gradle-wrapper.jar
+.kotlin/
+kotlin-js-store/
+*.hprof
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker volumes & data
+data/
+logs/
+elasticsearch/data/
+qdrant_data/
+fluent-bit-db/
+postgres-data/
+redis-data/
+mongodb-data/
+
+# Caddy
+caddy/config/
+caddy/data/
+caddy.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Database
+*.sql.gz
+*.dump
+*.sqlite
+*.db
+
+# Backup & temp files
+*.backup
+*.backup.*
+*.bak
+*.tmp
+*.temp
+archive/
+tmp/
+temp/
+*_COMPLETE.md
+*_MIGRATION_*.md
+*-plan.md
+*-assignments.md
+check-*.sh
+holo-dev.sh
+*_enriched_table.sql
+initialize_*.py
+migrate_*.py
+
+# Claude/AI config files
+CLAUDE*.md
+.claude/
+claude.json
+
+# Monitoring
+prometheus-data/
+grafana-data/
+
+# Certificates
+*.pem
+*.key
+*.crt
+*.cer
+ssl/
+
+# Local config
+*.local
+!.env.example
+
+# Development files - STRICT BLOCKING
+docs/
+*/docs/
+scripts/
+test-*
+*test.*
+*Test.*
+*dev-tool*
+*assistant*
+*config-server*

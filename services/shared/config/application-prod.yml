@@ -1,0 +1,65 @@
+# 프로덕션 환경 설정
+spring:
+  profiles:
+    active: prod
+  
+  # 프로덕션 데이터베이스
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    pool:
+      initial-size: 10
+      max-size: 50
+      max-idle-time: 10m
+    
+  # 프로덕션 Redis
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
+      
+  # 프로덕션 RabbitMQ
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
+
+# 프로덕션 Eureka
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL}
+
+# 프로덕션 로깅
+logging:
+  level:
+    root: WARN
+    com.holo.oshi: INFO
+    org.springframework.web: WARN
+    org.springframework.data: WARN
+  file:
+    name: /var/log/holo-oshi/${spring.application.name}.log
+    max-size: 100MB
+    max-history: 30
+    
+# 프로덕션 추가 설정
+debug: false
+trace: false
+
+# 성능 최적화
+server:
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 20
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain

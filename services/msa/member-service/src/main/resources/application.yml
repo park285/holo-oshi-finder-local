@@ -1,0 +1,82 @@
+server:
+  port: 50001
+
+spring:
+  application:
+    name: member-service
+  cloud:
+    compatibility-verifier:
+      enabled: false
+    stream:
+      bindings:
+        member-created-out-0:
+          destination: member.events
+          content-type: application/json
+        member-updated-out-0:
+          destination: member.events
+          content-type: application/json
+        member-deleted-out-0:
+          destination: member.events
+          content-type: application/json
+      rabbit:
+        bindings:
+          member-created-out-0:
+            producer:
+              routing-key-expression: '''member.created'''
+          member-updated-out-0:
+            producer:
+              routing-key-expression: '''member.updated'''
+          member-deleted-out-0:
+            producer:
+              routing-key-expression: '''member.deleted'''
+  
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5433/holo_oshi_db
+    username: holo_user
+    password: holo_password
+    pool:
+      initial-size: 5
+      max-size: 20
+      max-idle-time: 30m
+  
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: rabbit
+    password: rabbit_secret
+    virtual-host: /
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka:eureka_secret@localhost:50008/eureka/
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0  # Netflix/Google 수준: 모든 요청 추적
+  zipkin:
+    tracing:
+      endpoint: http://localhost:59411/api/v2/spans
+
+logging:
+  level:
+    com.holo.oshi: DEBUG
+    org.springframework.cloud: INFO
+    org.springframework.web: DEBUG
+    org.springframework.data.r2dbc: DEBUG

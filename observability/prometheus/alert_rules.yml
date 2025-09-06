@@ -1,0 +1,149 @@
+groups:
+  - name: msa_services
+    interval: 30s
+    rules:
+      # 서비스 다운 알람
+      - alert: ServiceDown
+        expr: up{job=~".*-service|api-gateway|eureka-server"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "서비스 다운: {{ $labels.service }}"
+          description: "{{ $labels.service }} 서비스가 2분 이상 다운되었습니다."
+
+      # 높은 응답시간 알람
+      - alert: HighResponseTime
+        expr: http_server_requests_seconds_mean{job=~".*-service|api-gateway"} > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "높은 응답시간: {{ $labels.service }}"
+          description: "{{ $labels.service }}의 평균 응답시간이 1초를 초과했습니다 (현재: {{ $value }}s)"
+
+      # 높은 에러율 알람
+      - alert: HighErrorRate
+        expr: rate(http_server_requests_seconds_count{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "높은 에러율: {{ $labels.service }}"
+          description: "{{ $labels.service }}의 5xx 에러율이 5%를 초과했습니다"
+
+      # Circuit Breaker Open
+      - alert: CircuitBreakerOpen
+        expr: resilience4j_circuitbreaker_state{state="open"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit Breaker Open: {{ $labels.name }}"
+          description: "{{ $labels.name }} Circuit Breaker가 Open 상태입니다"
+
+      # Rate Limiting 임계치 도달
+      - alert: RateLimitThreshold
+        expr: rate(rate_limit_exceeded_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Rate Limiting 임계치 초과"
+          description: "Rate Limiting이 분당 10회 이상 발생하고 있습니다"
+
+  - name: infrastructure
+    interval: 30s
+    rules:
+      # CPU 사용률
+      - alert: HighCPUUsage
+        expr: (100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "높은 CPU 사용률"
+          description: "CPU 사용률이 80%를 초과했습니다 (현재: {{ $value }}%)"
+
+      # 메모리 사용률
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "높은 메모리 사용률"
+          description: "메모리 사용률이 85%를 초과했습니다 (현재: {{ $value }}%)"
+
+      # PostgreSQL 연결 수
+      - alert: PostgreSQLTooManyConnections
+        expr: pg_stat_activity_count > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL 연결 수 초과"
+          description: "PostgreSQL 연결 수가 90개를 초과했습니다 (현재: {{ $value }})"
+
+      # Redis 메모리
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis 메모리 사용률 높음"
+          description: "Redis 메모리 사용률이 90%를 초과했습니다"
+
+      # RabbitMQ 큐 지연
+      - alert: RabbitMQQueueBacklog
+        expr: rabbitmq_queue_messages_ready > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RabbitMQ 큐 백로그"
+          description: "{{ $labels.queue }} 큐에 1000개 이상의 메시지가 대기 중입니다"
+
+      # 디스크 사용률
+      - alert: DiskSpaceRunningOut
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100) < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "디스크 공간 부족"
+          description: "디스크 여유 공간이 10% 미만입니다"
+
+  - name: business_metrics
+    interval: 30s
+    rules:
+      # 검색 성능 저하
+      - alert: SearchPerformanceDegraded
+        expr: histogram_quantile(0.95, rate(search_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "검색 성능 저하"
+          description: "95% 검색 요청이 2초 이상 걸리고 있습니다"
+
+      # LLM API 실패
+      - alert: LLMAPIFailure
+        expr: rate(llm_api_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "LLM API 실패율 높음"
+          description: "LLM API 호출 실패율이 10%를 초과했습니다"
+
+      # Vector 인덱싱 실패
+      - alert: VectorIndexingFailure
+        expr: rate(vector_indexing_failures_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Vector 인덱싱 실패"
+          description: "Vector 인덱싱 실패가 발생하고 있습니다"

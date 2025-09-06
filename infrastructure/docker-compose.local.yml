@@ -1,0 +1,284 @@
+# Holo-Oshi-Finder Local Development Environment
+# MSA 구조를 위한 실제 서비스 기반 Docker Compose
+
+version: '3.8'
+
+services:
+  
+  # ===========================================
+  # 인프라 서비스들 (데이터베이스, 캐시, 메시지큐)
+  # ===========================================
+  
+  # PostgreSQL + pgvector
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: holo-postgres
+    environment:
+      POSTGRES_USER: holo_user
+      POSTGRES_PASSWORD: holo_password
+      POSTGRES_DB: holo_oshi_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C.UTF-8"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U holo_user -d holo_oshi_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Redis (통합 인스턴스)
+  redis:
+    image: redis:7-alpine
+    container_name: holo-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data:/data
+    command: |
+      redis-server 
+      --appendonly yes 
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1 60 100 30 10000
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: holo-rabbitmq
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: rabbit
+      RABBITMQ_DEFAULT_PASS: rabbit_secret
+      RABBITMQ_PLUGINS: rabbitmq_management,rabbitmq_prometheus
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================
+  # 마이크로서비스들 (Kotlin Spring Boot)
+  # ===========================================
+
+  # Unified Service (현재 모놀리식, MSA 분해 예정)
+  unified-service:
+    build:
+      context: ./services
+      dockerfile: unified-service/Dockerfile
+    container_name: holo-unified-service
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=holo_oshi_db
+      - DB_USER=holo_user
+      - DB_PASSWORD=holo_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # LLM Analyzer Service (API 경로 통일 완료)
+  llm-analyzer-service:
+    build:
+      context: ./services
+      dockerfile: llm-analyzer-service/Dockerfile
+    container_name: holo-llm-analyzer
+    ports:
+      - "9008:9008"
+    environment:
+      - SERVER_PORT=9008
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9008/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # NLP Service (한국어 자연어 처리)
+  nlp-service:
+    build:
+      context: ./services
+      dockerfile: nlp-service/Dockerfile
+    container_name: holo-nlp-service
+    ports:
+      - "3001:3001"
+    environment:
+      - SERVER_PORT=3001
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PgVector Service (벡터 검색)
+  pgvector-service:
+    build:
+      context: ./services
+      dockerfile: pgvector-service/Dockerfile
+    container_name: holo-pgvector-service
+    ports:
+      - "3003:3003"
+    environment:
+      - SERVER_PORT=3003
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=holo_oshi_db
+      - DB_USER=holo_user
+      - DB_PASSWORD=holo_password
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Monitoring Service (모니터링 및 통계)
+  monitoring-service:
+    build:
+      context: ./services
+      dockerfile: monitoring-service/Dockerfile
+    container_name: holo-monitoring-service
+    ports:
+      - "9010:9010"
+    environment:
+      - SERVER_PORT=9010
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================
+  # API Gateway (Caddy)
+  # ===========================================
+
+  # Caddy API Gateway
+  caddy:
+    image: caddy:2-alpine
+    container_name: holo-caddy-gateway
+    ports:
+      - "80:80"      # HTTP
+      - "443:443"    # HTTPS
+    volumes:
+      - ./caddy/Caddyfile.local:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - unified-service
+      - llm-analyzer-service
+      - nlp-service
+      - pgvector-service
+      - monitoring-service
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================
+  # 관리 도구들
+  # ===========================================
+
+  # Database Admin UI
+  adminer:
+    image: adminer
+    container_name: holo-adminer
+    ports:
+      - "8091:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # Container Management UI
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: holo-portainer
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer-data:/data
+    restart: unless-stopped
+
+# ===========================================
+# 볼륨 정의
+# ===========================================
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
+  portainer-data:
+    driver: local
+
+# ===========================================
+# 네트워크 정의 (기본 네트워크 사용)
+# ===========================================
+networks:
+  default:
+    driver: bridge

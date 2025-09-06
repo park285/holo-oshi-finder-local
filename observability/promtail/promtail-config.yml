@@ -1,0 +1,94 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # MSA 서비스 로그 수집
+  - job_name: msa-services
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: msa-services
+          __path__: /msa/*/logs/*.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\w+)\s+\[(?P<service>[^\]]+)\]\s+(?P<thread>\[[^\]]+\])\s+(?P<class>[^\s]+)\s+:\s+(?P<message>.*)'
+      - labels:
+          level:
+          service:
+      - timestamp:
+          source: timestamp
+          format: '2006-01-02 15:04:05.000'
+
+  # API Gateway 로그
+  - job_name: api-gateway
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: api-gateway
+          service: api-gateway
+          __path__: /msa/api-gateway/logs/*.log
+    pipeline_stages:
+      - multiline:
+          firstline: '^\d{4}-\d{2}-\d{2}'
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\w+)'
+      - labels:
+          level:
+
+  # Member Service 로그
+  - job_name: member-service
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: member-service
+          service: member-service
+          __path__: /msa/member-service/logs/*.log
+
+  # Vector Service 로그
+  - job_name: vector-service
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: vector-service
+          service: vector-service
+          __path__: /msa/vector-service/logs/*.log
+
+  # LLM Analyzer Service 로그
+  - job_name: llm-analyzer
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: llm-analyzer
+          service: llm-analyzer
+          __path__: /msa/llm-analyzer/logs/*.log
+
+  # Search Service 로그
+  - job_name: search-service
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: search-service
+          service: search-service
+          __path__: /msa/search-service/logs/*.log
+
+  # 시스템 로그
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          __path__: /var/log/*.log
